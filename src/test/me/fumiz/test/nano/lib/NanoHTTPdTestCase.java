@@ -40,6 +40,7 @@ public class NanoHTTPdTestCase extends TestCase {
     }
 
     private static final int DEFAULT_PORT_NUMBER = 9821;
+    private static final String DEFAULT_LOCALHOST = "http://127.0.0.1";
     private TestServer mServer;
     private int mPortNumber;
 
@@ -75,7 +76,7 @@ public class NanoHTTPdTestCase extends TestCase {
      * @return url to test server
      */
     protected String getTestUrl(String path) {
-        return String.format("http://127.0.0.1:%d%s", DEFAULT_PORT_NUMBER, path);
+        return String.format("%s:%d%s", DEFAULT_LOCALHOST, DEFAULT_PORT_NUMBER, path);
     }
 
     protected NanoHTTPd.Response createSimpleResponse(String responseText) {
