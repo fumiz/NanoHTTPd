@@ -1,16 +1,9 @@
 package me.fumiz.nano;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.Date;
 import java.util.Enumeration;
@@ -20,9 +13,6 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
-
-import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 
 /**
  * A simple, tiny, nicely embeddable HTTP 1.0 server in Java
@@ -608,24 +598,8 @@ public class NanoHTTPd {
          */
         private String decodePercent(String str) throws InterruptedException {
             try {
-                StringBuffer sb = new StringBuffer();
-                for (int i = 0; i < str.length(); i++) {
-                    char c = str.charAt(i);
-                    switch (c) {
-                        case '+':
-                            sb.append(' ');
-                            break;
-                        case '%':
-                            sb.append((char) Integer.parseInt(str.substring(i + 1, i + 3), 16));
-                            i += 2;
-                            break;
-                        default:
-                            sb.append(c);
-                            break;
-                    }
-                }
-                return sb.toString();
-            } catch (Exception e) {
+                return URLDecoder.decode(str, "utf-8");
+            } catch (UnsupportedEncodingException e) {
                 sendError(HTTP_BADREQUEST, "BAD REQUEST: Bad percent-encoding.");
                 return null;
             }
