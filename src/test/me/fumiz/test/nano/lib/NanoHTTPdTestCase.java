@@ -79,7 +79,7 @@ public class NanoHTTPdTestCase extends TestCase {
     }
 
     protected NanoHTTPd.Response createSimpleResponse(String responseText) {
-        return new NanoHTTPd.Response("200 OK", "text/plain", responseText);
+        return new NanoHTTPd.Response(NanoHTTPd.HTTP_OK, NanoHTTPd.MIME_PLAINTEXT, responseText);
     }
 
     protected <T> T execute(TestRequestHandler handler, org.apache.http.client.methods.HttpUriRequest httpUriRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler) throws java.io.IOException {
