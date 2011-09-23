@@ -1,3 +1,5 @@
+package me.fumiz.nano;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -107,7 +109,7 @@ public class NanoHTTPd {
      * HTTP response.
      * Return one of these from serve().
      */
-    public class Response {
+    public static class Response {
         /**
          * Default constructor: response = HTTP_OK, data = mime = 'null'
          */
