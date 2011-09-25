@@ -5,14 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.Vector;
-import java.util.Hashtable;
-import java.util.Locale;
-import java.util.Properties;
-import java.util.StringTokenizer;
-import java.util.TimeZone;
+import java.util.*;
 
 /**
  * A simple, tiny, nicely embeddable HTTP 1.0 server in Java
@@ -461,6 +454,25 @@ public class NanoHTTPd {
             }
         }
 
+        private BufferedReader peepingBufferedReader(BufferedReader in) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            try{
+                while((line = in.readLine()) != null) {
+                    if (sb.length() != 0) {
+                        sb.append("\r\n");
+                    }
+                    sb.append(line);
+                }
+            } catch(IOException e) {
+                System.out.println(e.toString());
+            }
+            String bufferedReaderInnerString = sb.toString();
+            System.out.println(bufferedReaderInnerString);
+            BufferedReader out = new BufferedReader(new StringReader(bufferedReaderInnerString));
+            return out;
+        }
+
         /**
          * Decodes the Multipart Body data and put it
          * into java Properties' key - value pairs.
@@ -471,18 +483,27 @@ public class NanoHTTPd {
                 int[] bpositions = getBoundaryPositions(fbuf, boundary.getBytes());
                 int boundarycount = 1;
                 String mpline = in.readLine();
+                // multipart's "part" read sequential
                 while (mpline != null) {
-                    if (mpline.indexOf(boundary) == -1)
+                    if (mpline.indexOf(boundary) == -1) {
                         sendError(HTTP_BADREQUEST, "BAD REQUEST: Content type is multipart/form-data but next chunk does not start with boundary. Usage: GET /example/file.html");
+                    }
                     boundarycount++;
+                    // current part's headers
                     Properties item = new Properties();
                     mpline = in.readLine();
+                    // read headers and construct "item" Properties
                     while (mpline != null && mpline.trim().length() > 0) {
                         int p = mpline.indexOf(':');
-                        if (p != -1)
-                            item.put(mpline.substring(0, p).trim().toLowerCase(), mpline.substring(p + 1).trim());
+                        if (p != -1) {
+                            String headerKey = mpline.substring(0, p).trim();
+                            String headerValue = mpline.substring(p + 1).trim();
+                            item.put(headerKey.toLowerCase(), headerValue);
+                        }
                         mpline = in.readLine();
                     }
+
+                    // read current part's body
                     if (mpline != null) {
                         String contentDisposition = item.getProperty("content-disposition");
                         if (contentDisposition == null) {
@@ -490,30 +511,33 @@ public class NanoHTTPd {
                         }
                         StringTokenizer st = new StringTokenizer(contentDisposition, "; ");
                         Properties disposition = new Properties();
+                        // read disposition
                         while (st.hasMoreTokens()) {
                             String token = st.nextToken();
                             int p = token.indexOf('=');
-                            if (p != -1)
-                                disposition.put(token.substring(0, p).trim().toLowerCase(), token.substring(p + 1).trim());
+                            if (p != -1) {
+                                String dispositionKey = token.substring(0, p).trim();
+                                String dispositionValue = token.substring(p + 1).trim();
+                                disposition.put(dispositionKey.toLowerCase(), dispositionValue);
+                            }
                         }
                         String pname = disposition.getProperty("name");
                         pname = pname.substring(1, pname.length() - 1);
 
+                        // if content-type is text/plain read body text directly
+                        // else read body as binary and write to temporary file
                         String value = "";
-                        if (item.getProperty("content-type") == null) {
-                            while (mpline != null && mpline.indexOf(boundary) == -1) {
-                                mpline = in.readLine();
-                                if (mpline != null) {
-                                    int d = mpline.indexOf(boundary);
-                                    if (d == -1)
-                                        value += mpline;
-                                    else
-                                        value += mpline.substring(0, d - 2);
-                                }
+                        String contentType = item.getProperty("content-type");
+                        if (contentType == null || contentType.contains("text/plain")) {
+                            if (mpline != null && mpline.indexOf(boundary) == -1) {
+                                String[] tmpret = readMultipartStringBody(in, boundary);
+                                value = tmpret[0];
+                                mpline = tmpret[1];
                             }
                         } else {
-                            if (boundarycount > bpositions.length)
+                            if (boundarycount > bpositions.length) {
                                 sendError(HTTP_INTERNALERROR, "Error processing request");
+                            }
                             int offset = stripMultipartHeaders(fbuf, bpositions[boundarycount - 2]);
                             String path = saveTmpFile(fbuf, offset, bpositions[boundarycount - 1] - offset - 4);
                             files.put(pname, path);
@@ -529,6 +553,92 @@ public class NanoHTTPd {
             } catch (IOException ioe) {
                 sendError(HTTP_INTERNALERROR, "SERVER INTERNAL ERROR: IOException: " + ioe.getMessage());
             }
+        }
+
+        /**
+         * Read multipart string body. Maybe that part content-type is text/plain.
+         * This method have by-effect. BufferedReader's current position move to next last of passed part.
+         * TODO: should refactoring decodeMultipartData method and this method return only one value.
+         * @param in input BufferedReader
+         * @param boundary multipart boundary string
+         * @return read string
+         */
+        public String[] readMultipartStringBody(BufferedReader in, String boundary) throws IOException {
+            String mpline = "";
+            String value = "";
+            while (mpline != null && mpline.indexOf(boundary) == -1) {
+                mpline = readLineAndKeepLinefeed(in);
+                if (mpline != null) {
+                    int d = mpline.indexOf(boundary);
+                    if (d == -1) {
+                        value += mpline;
+                    } else {
+                        value += mpline.substring(0, d - 2);
+                        value = chomp(value);
+                    }
+                }
+            }
+            return new String[]{ value, mpline };
+        }
+
+        /**
+         * remove last linefeed
+         * @param text target text
+         * @return text last linefeed removed
+         */
+        private String chomp(String text) {
+            // warning: this array is order sensitive
+            final String[] LINEFEEDS = new String[]{ "\r\n", "\r", "\n" };
+            for (String linefeed : LINEFEEDS) {
+                int textLength = text.length();
+                int linefeedLength = linefeed.length();
+                if (text.lastIndexOf(linefeed) == (textLength - linefeedLength)) {
+                    return text.substring(0, textLength - (linefeedLength));
+                }
+            }
+            return text;
+        }
+
+        /**
+         * Peek char from BufferedReader. Read next one char and rewind current position.
+         * @param in target BufferedReader
+         * @return next one char
+         * @throws IOException BufferedReader#read
+         */
+        private char peekBufferedReader(BufferedReader in) throws IOException {
+            in.mark(1);
+            char c = (char)in.read();
+            in.reset();
+            return c;
+        }
+
+        /**
+         * similar to BufferedReader#readLine. Difference is BufferedReader#readLine is remove linefeed but this method is keep that.
+         * @param in target BufferedReader
+         * @return line string with linefeed
+         * @throws IOException BufferedReader#read
+         */
+        private String readLineAndKeepLinefeed(BufferedReader in) throws IOException {
+            StringBuilder s = new StringBuilder();
+
+            char c;
+            while((c = (char)in.read()) != -1) {
+                s.append(c);
+
+                // if current char is LF finish read
+                if (c == '\n') {
+                    break;
+                }
+                // if current char is CR and next char is not LF finish read
+                if (c == '\r') {
+                    char nextChar = peekBufferedReader(in);
+                    if (nextChar != '\n') {
+                        break;
+                    }
+                }
+            }
+
+            return s.toString();
         }
 
         /**
