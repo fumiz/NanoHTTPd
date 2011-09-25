@@ -2,7 +2,9 @@ package me.fumiz.test.nano.lib;
 
 import junit.framework.TestCase;
 import me.fumiz.nano.NanoHTTPd;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.ResponseHandler;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 import java.io.IOException;
@@ -83,16 +85,60 @@ public class NanoHTTPdTestCase extends TestCase {
         return new NanoHTTPd.Response(NanoHTTPd.HTTP_OK, NanoHTTPd.MIME_PLAINTEXT, responseText);
     }
 
-    protected <T> T execute(TestRequestHandler handler, org.apache.http.client.methods.HttpUriRequest httpUriRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler) throws java.io.IOException {
-        setRequestHandler(handler);
+    /**
+     * Exception Container
+     * @param <T> ExceptionType
+     */
+    private class ExceptionContainer<T extends Throwable> {
+        private T mObj = null;
+        public void set(T obj) {
+            mObj = obj;
+        }
+        public T get() {
+            return mObj;
+        }
+    }
+
+    protected <T> T execute(final TestRequestHandler handler, final org.apache.http.client.methods.HttpUriRequest httpUriRequest, final org.apache.http.client.ResponseHandler<? extends T> responseHandler) throws IOException {
+        final ExceptionContainer<AssertionError> tContainer = new ExceptionContainer<AssertionError>();
+        setRequestHandler(new TestRequestHandler() {
+            @Override
+            public NanoHTTPd.Response onRequest(String uri, String method, Properties header, Properties parms, Properties files) {
+                AssertionError thrown = null;
+                NanoHTTPd.Response result = null;
+                try {
+                    result = handler.onRequest(uri, method, header, parms, files);
+                } catch(AssertionError e) {
+                    thrown = e;
+                }
+                tContainer.set(thrown);
+                return result;
+            }
+        });
         HttpClient client = new DefaultHttpClient();
-        T ret = client.execute(httpUriRequest, responseHandler);
+        T ret = client.execute(httpUriRequest, new ResponseHandler<T>() {
+            @Override
+            public T handleResponse(HttpResponse httpResponse) throws IOException {
+                AssertionError error = tContainer.get();
+                if (error != null) {
+                    return null;
+                }
+                return responseHandler.handleResponse(httpResponse);
+            }
+        });
         client.getConnectionManager().shutdown();
         setRequestHandler(null);
+
+        AssertionError error = tContainer.get();
+        if (error != null) {
+            throw error;
+        }
+
         return ret;
     }
 
-    protected <T> T execute(TestRequestHandler handler, org.apache.http.client.methods.HttpUriRequest httpUriRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler, org.apache.http.protocol.HttpContext httpContext) throws java.io.IOException {
+    /*
+    protected <T> T execute(final TestRequestHandler handler, org.apache.http.client.methods.HttpUriRequest httpUriRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler, org.apache.http.protocol.HttpContext httpContext) throws java.io.IOException {
         setRequestHandler(handler);
         HttpClient client = new DefaultHttpClient();
         T ret = client.execute(httpUriRequest, responseHandler, httpContext);
@@ -101,7 +147,7 @@ public class NanoHTTPdTestCase extends TestCase {
         return ret;
     }
 
-    protected <T> T execute(TestRequestHandler handler, org.apache.http.HttpHost httpHost, org.apache.http.HttpRequest httpRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler) throws java.io.IOException {
+    protected <T> T execute(final TestRequestHandler handler, org.apache.http.HttpHost httpHost, org.apache.http.HttpRequest httpRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler) throws java.io.IOException {
         setRequestHandler(handler);
         HttpClient client = new DefaultHttpClient();
         T ret = client.execute(httpHost, httpRequest, responseHandler);
@@ -110,11 +156,12 @@ public class NanoHTTPdTestCase extends TestCase {
         return ret;
     }
 
-    protected <T> T execute(org.apache.http.HttpHost httpHost, org.apache.http.HttpRequest httpRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler, org.apache.http.protocol.HttpContext httpContext) throws java.io.IOException {
+    protected <T> T execute(final org.apache.http.HttpHost httpHost, org.apache.http.HttpRequest httpRequest, org.apache.http.client.ResponseHandler<? extends T> responseHandler, org.apache.http.protocol.HttpContext httpContext) throws java.io.IOException {
         HttpClient client = new DefaultHttpClient();
         T ret = client.execute(httpHost, httpRequest, responseHandler, httpContext);
         client.getConnectionManager().shutdown();
         setRequestHandler(null);
         return ret;
     }
+    */
 }
