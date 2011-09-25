@@ -287,10 +287,11 @@ public class NanoHTTPd {
                 Properties pre = new Properties();
                 Properties parms = new Properties();
                 Properties header = new Properties();
+                Properties rawHeader = new Properties();
                 Properties files = new Properties();
 
                 // Decode the header into parms and header java properties
-                decodeHeader(hin, pre, parms, header);
+                decodeHeader(hin, pre, parms, header, rawHeader);
                 String method = pre.getProperty("method");
                 String uri = pre.getProperty("uri");
 
@@ -384,7 +385,7 @@ public class NanoHTTPd {
                 }
 
                 // Ok, now do the serve()
-                Response r = serve(uri, method, header, parms, files);
+                Response r = serve(uri, method, rawHeader, parms, files);
                 if (r == null)
                     sendError(HTTP_INTERNALERROR, "SERVER INTERNAL ERROR: Serve() returned a null response.");
                 else
@@ -411,7 +412,7 @@ public class NanoHTTPd {
          * Decodes the sent headers and loads the data into
          * java Properties' key - value pairs
          */
-        private void decodeHeader(BufferedReader in, Properties pre, Properties parms, Properties header)
+        private void decodeHeader(BufferedReader in, Properties pre, Properties parms, Properties header, Properties rawHeader)
                 throws InterruptedException {
             try {
                 // Read the request line
@@ -444,8 +445,12 @@ public class NanoHTTPd {
                     String line = in.readLine();
                     while (line != null && line.trim().length() > 0) {
                         int p = line.indexOf(':');
-                        if (p >= 0)
-                            header.put(line.substring(0, p).trim().toLowerCase(), line.substring(p + 1).trim());
+                        if (p >= 0) {
+                            String headerKey = line.substring(0, p).trim();
+                            String headerValue = line.substring(p + 1).trim();
+                            header.put(headerKey.toLowerCase(), headerValue);
+                            rawHeader.put(headerKey, headerValue);
+                        }
                         line = in.readLine();
                     }
                 }
