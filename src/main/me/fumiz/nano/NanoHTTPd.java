@@ -524,17 +524,11 @@ public class NanoHTTPd {
                         String pname = disposition.getProperty("name");
                         pname = pname.substring(1, pname.length() - 1);
 
-                        // if content-type is text/plain read body text directly
-                        // else read body as binary and write to temporary file
+                        // if content-type is application/octet-stream read body as binary and write to temporary file
+                        // else read body text directly
                         String value = "";
                         String contentType = item.getProperty("content-type");
-                        if (contentType == null || contentType.contains("text/plain")) {
-                            if (mpline != null && mpline.indexOf(boundary) == -1) {
-                                String[] tmpret = readMultipartStringBody(in, boundary);
-                                value = tmpret[0];
-                                mpline = tmpret[1];
-                            }
-                        } else {
+                        if (contentType != null && contentType.contains("application/octet-stream")) {
                             if (boundarycount > bpositions.length) {
                                 sendError(HTTP_INTERNALERROR, "Error processing request");
                             }
@@ -546,6 +540,12 @@ public class NanoHTTPd {
                             do {
                                 mpline = in.readLine();
                             } while (mpline != null && mpline.indexOf(boundary) == -1);
+                        } else {
+                            if (mpline != null && mpline.indexOf(boundary) == -1) {
+                                String[] tmpret = readMultipartStringBody(in, boundary);
+                                value = tmpret[0];
+                                mpline = tmpret[1];
+                            }
                         }
                         parms.put(pname, value);
                     }
