@@ -1,4 +1,4 @@
-package me.fumiz.test.nano.cases;
+package me.fumiz.test.nano.cases.functions;
 
 import me.fumiz.nano.NanoHTTPd;
 import me.fumiz.test.nano.lib.NanoHTTPdTestCase;
